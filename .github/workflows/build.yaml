@@ -1,0 +1,375 @@
+name: Build Caddy
+
+permissions: write-all
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Caddy version to build'
+        required: false
+        default: 'latest'
+        type: string
+
+jobs:
+  setup-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: generate
+        run: |
+          echo "Generating matrix..."
+          MATRIX=$(python3 matrix.py)
+          echo "$MATRIX" > matrix.json
+          cat matrix.json
+          echo "matrix<<EOF" >> $GITHUB_ENV
+          cat matrix.json >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Setup matrix
+        id: set
+        uses: druzsan/setup-matrix@v2
+        with:
+          matrix: |
+            ${{ env.matrix }}
+
+  build:
+    name: v${{ matrix.caddy_version }} (${{ matrix.os }})
+    needs: setup-matrix
+    strategy:
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
+      max-parallel: 10
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ 
+        startsWith(matrix.os, 'debian-') && (matrix.os == 'debian-11' && 'debian:bullseye' || matrix.os == 'debian-12' && 'debian:bookworm' || 'debian:bookworm') ||
+        startsWith(matrix.os, 'ubuntu-') && format('{0}:{1}', 'ubuntu', matrix.os == 'ubuntu-latest' && 'latest' || matrix.os == 'ubuntu-18.04' && '18.04' || matrix.os == 'ubuntu-20.04' && '20.04' || matrix.os == 'ubuntu-22.04' && '22.04' || matrix.os == 'ubuntu-24.04' && '24.04' || matrix.os) || '' }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    outputs:
+      caddy_version: ${{ matrix.caddy_version }}
+      go_version: ${{ matrix.go_version }}
+
+    steps:
+      - name: Debug context
+        run: |
+          echo "Matrix context:"
+          echo "${{ toJson(matrix) }}"
+          echo "OS: ${{ matrix.os }}"
+
+      - name: Bootstrap container (update + deps)
+        id: bootstrap
+        shell: bash
+        run: |
+          upx="upx-ucl"
+          if [ "${{ matrix.os }}" = "debian-12" ]; then
+            echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/sources.list
+            upx="upx-ucl/bookworm-backports"
+          fi
+          echo 'Acquire::Retries "3";' >> /etc/apt/apt.conf.d/80-retries
+          echo 'Acquire::http::Timeout "120";' >> /etc/apt/apt.conf.d/80-timeout
+          for i in {1..5}; do
+            apt-get update && apt-get install -y --no-install-recommends \
+              apt-transport-https lsb-release sudo wget git gzip file util-linux dnsutils \
+              dirmngr software-properties-common psmisc gnupg2 ca-certificates gpg-agent \
+              dos2unix nfs-common jq locales debconf-utils net-tools build-essential \
+              zip unzip ssl-cert openssl autoconf-archive debian-keyring debian-archive-keyring \
+              libicu-dev "$upx" \
+            && break
+            echo "Retry #$i failed — new attempt in 5s…" >&2
+            sleep 5
+          done
+          if [ $i -eq 5 ]; then
+            echo "Error: failed to install packages after 5 attempts" >&2
+            exit 1
+          fi
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout tools repository
+        uses: actions/checkout@v4
+        with:
+          repository: MediaEase-binaries/tools
+          path: tools
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go_version }}
+
+      - name: Build Caddy
+        shell: bash
+        run: |
+          version_ge() {
+            [ "$(printf '%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+          }
+          DEFENDER_FLAG=""
+          FAIL2BAN_FLAG=""
+          CLOUDFLARE_FLAG=""
+          LIBDNS_FLAG=""
+          DYNAMICDNS_FLAG=""
+          CERTMAGIC_FLAG=""
+          if version_ge "${{ matrix.caddy_version }}" "2.9.0"; then
+            DEFENDER_FLAG="--with github.com/jasonlovesdoggo/caddy-defender@${{ matrix.mod_defender_version }}"
+            CERTMAGIC_FLAG="--with github.com/caddyserver/certmagic@${{ matrix.mod_certmagic_version }}"
+          else
+            sed -i '/jasonlovesdoggo\/caddy-defender/d' ./tools/packages/caddy/control
+          fi
+          if version_ge "${{ matrix.caddy_version }}" "2.7.6"; then
+            FAIL2BAN_FLAG="--with github.com/Javex/caddy-fail2ban"
+            LIBDNS_FLAG="--with github.com/libdns/libdns@${{ matrix.mod_libdns_version }}"
+            else
+            sed -i '/Javex\/caddy-fail2ban/d' ./tools/packages/caddy/control
+            fi
+          if version_ge "${{ matrix.caddy_version }}" "2.10.0"; then
+            CLOUDFLARE_FLAG="--with github.com/caddy-dns/cloudflare@${{ matrix.mod_cloudflare_version }}"
+            LIBDNS_FLAG="--with github.com/libdns/libdns@${{ matrix.mod_libdns_version }}"
+            DYNAMICDNS_FLAG="--with github.com/mholt/caddy-dynamicdns@${{ matrix.mod_dynamicdns_version }}"
+            CERTMAGIC_FLAG="--with github.com/caddyserver/certmagic@${{ matrix.mod_certmagic_version }}"
+            DEFENDER_FLAG="--with pkg.jsn.cam/caddy-defender@${{ matrix.mod_defender_version }}"
+          else
+            sed -i '/caddy-dns\/cloudflare/d' ./tools/packages/caddy/control
+            sed -i '/libdns\/libdns/d' ./tools/packages/caddy/control
+            sed -i '/mholt\/caddy-dynamicdns/d' ./tools/packages/caddy/control
+          fi
+          wget -q -O "xcaddy.deb" "https://github.com/caddyserver/xcaddy/releases/download/v${{ matrix.xcaddy_version }}/xcaddy_${{ matrix.xcaddy_version }}_linux_amd64.deb"
+          sudo dpkg -i "xcaddy.deb"
+          rm -f "xcaddy.deb"
+          export GOFLAGS="-compat=1.17" 
+          export CGO_ENABLED=0
+          xcaddy build v${{ matrix.caddy_version }} \
+            $LIBDNS_FLAG \
+            --with github.com/abiosoft/caddy-exec \
+            --with github.com/greenpau/caddy-security@${{ matrix.mod_security_version }} \
+            --with github.com/mholt/caddy-l4@${{ matrix.mod_l4_version }} \
+            --with github.com/hslatman/caddy-crowdsec-bouncer@${{ matrix.mod_crowdsec_bouncer_version }} \
+            $CERTMAGIC_FLAG \
+            $CLOUDFLARE_FLAG \
+            $DYNAMICDNS_FLAG \
+            --with github.com/mholt/caddy-webdav@${{ matrix.mod_webdav_version }} \
+            $DEFENDER_FLAG \
+            --with github.com/mholt/caddy-ratelimit@${{ matrix.mod_ratelimit_version }} \
+            $FAIL2BAN_FLAG \
+            --with github.com/caddyserver/cache-handler@${{ matrix.mod_cache_handler_version }} \
+            --output caddy_static
+          mv caddy_static caddy
+          strip --strip-unneeded ./caddy
+          if command -v upx >/dev/null 2>&1; then
+            upx --best --lzma ./caddy
+          else
+            echo "  ✗ UPX not available"
+          fi
+          mkdir -p output
+          wget -q -O "caddy.deb" "https://github.com/caddyserver/caddy/releases/download/v${{ matrix.caddy_version }}/caddy_${{ matrix.caddy_version }}_linux_amd64.deb"
+          sudo dpkg -x "caddy.deb" output/
+          old_caddy_binary=$(find output/ -type f -executable -name "caddy" | head -n1)
+          rm -f "$old_caddy_binary"
+          mv caddy output/usr/bin/caddy
+          cd output
+          INSTALLED_SIZE="$(du -sk . | cut -f1)"
+          DATE=$(date +%Y-%m-%d)
+          sudo dpkg -e "../caddy.deb" DEBIAN
+          rm -f "../caddy.deb"
+          mv ../tools/packages/caddy/control DEBIAN/control
+          sed -i "s/@VERSION@/${{ matrix.caddy_version }}/g" DEBIAN/control
+          sed -i "s/@DATE@/$DATE/g" DEBIAN/control
+          sed -i "s/@INSTALLED_SIZE@/$INSTALLED_SIZE/g" DEBIAN/control
+          find . -type f ! -path "./DEBIAN/*" -exec md5sum {} \; > DEBIAN/md5sums
+          cd ..
+          distro=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+          codename=$(lsb_release -cs)
+          os=$distro-$codename
+          dpkg-deb --build -Zxz -z9 -Sextreme --root-owner-group "output/" "caddy_${{ matrix.caddy_version }}_${os}_amd64.deb"
+
+      - name: Generate metadata
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          caddy_deb=$(find . -name "caddy_${{ matrix.caddy_version }}*.deb" | head -n1)
+          distro=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+          codename=$(lsb_release -cs)
+          os=$distro-$codename
+          cp "$caddy_deb" artifacts/
+          echo "Generating metadata for $caddy_deb"
+          cd artifacts
+          version_ge() {
+            [ "$(printf '%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+          }
+          normalize_version() {
+            local ver="$1"
+            if [[ "$ver" =~ ^v[01] ]]; then
+              echo "$ver"
+            else
+              echo "rev=$ver"
+            fi
+          }
+          declare -A MODULE_VERSIONS
+          MODULE_VERSIONS["caddy_cache_handler"]="${{ matrix.mod_cache_handler_version }}"
+          MODULE_VERSIONS["caddy_certmagic"]="${{ matrix.mod_certmagic_version }}"
+          MODULE_VERSIONS["caddy_cloudflare"]="${{ matrix.mod_cloudflare_version }}"
+          MODULE_VERSIONS["caddy_crowdsec_bouncer"]="${{ matrix.mod_crowdsec_bouncer_version }}"
+          MODULE_VERSIONS["caddy_defender"]="${{ matrix.mod_defender_version }}"
+          MODULE_VERSIONS["caddy_dynamicdns"]="${{ matrix.mod_dynamicdns_version }}"
+          MODULE_VERSIONS["caddy_exec"]="${{ matrix.mod_exec_version }}"
+          MODULE_VERSIONS["caddy_fail2ban"]="${{ matrix.mod_fail2ban_version }}"
+          MODULE_VERSIONS["caddy_l4"]="${{ matrix.mod_l4_version }}"
+          MODULE_VERSIONS["caddy_libdns"]="${{ matrix.mod_libdns_version }}"
+          MODULE_VERSIONS["caddy_ratelimit"]="${{ matrix.mod_ratelimit_version }}"
+          MODULE_VERSIONS["caddy_security"]="${{ matrix.mod_security_version }}"
+          MODULE_VERSIONS["caddy_webdav"]="${{ matrix.mod_webdav_version }}"
+          for key in "${!MODULE_VERSIONS[@]}"; do
+            raw_version="${MODULE_VERSIONS[$key]}"
+            MODULE_VERSIONS[$key]=$( normalize_version "$raw_version" )
+          done
+          enabled_plugins=()
+          for module in ${{ join(matrix.enabled_modules, ' ') }}; do
+            plugin_name="${module//_/-}"
+            enabled_plugins+=("$plugin_name")
+          done
+          enabled_plugins_str=$(IFS=,; echo "${enabled_plugins[*]}")
+          EXTRA_ARGS=(
+            --extra go_version=${{ matrix.go_version }}
+            --extra xcaddy_version=${{ matrix.xcaddy_version }}
+            --extra enabled_plugins="$enabled_plugins_str"
+          )
+          for module in ${{ join(matrix.enabled_modules, ' ') }}; do
+            EXTRA_ARGS+=(--extra "${module}_version=${MODULE_VERSIONS[$module]}")
+          done
+          echo "EXTRA_ARGS: ${EXTRA_ARGS[*]}"
+          echo "enabled_plugins: ${enabled_plugins[*]}"
+          ../tools/generate_metadata.sh \
+            --category "caddy" \
+            --tag      "${{ matrix.stability }}" \
+            --version  "${{ matrix.caddy_version }}" \
+            --os       "$codename" \
+            "${EXTRA_ARGS[@]}" \
+            "$caddy_deb"
+          ls -la
+
+      - name: Upload as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: caddy_${{ matrix.caddy_version }}_${{ matrix.os }}
+          path: artifacts/*
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        caddy_version: ['2.5.2', '2.6.4', '2.7.6', '2.8.4', '2.9.1', '2.10.0']
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded_artifacts
+          pattern: caddy_${{ matrix.caddy_version }}*
+      - name: Prepare release assets
+        id: prepare-release-assets
+        run: |
+          mkdir -p release_assets
+          find downloaded_artifacts -type f \
+            \( -name "caddy_*" -o -name "caddy_*.json" \) \
+            -exec cp {} release_assets/ \;
+          TEMP_DIR=$(mktemp -d)
+          PACKAGES_TABLE="$TEMP_DIR/packages.md"
+          CONFIG_TABLE="$TEMP_DIR/config.md"
+          {
+            echo "| Package | OS |"
+            echo "| ------- | -- |"
+            for f in release_assets/*.deb; do
+              if [ -f "$f" ]; then
+                pkg=$(basename "$f")
+                os=$(echo "$pkg" | grep -o "debian-[^ _]*\|ubuntu-[^ _]*" || echo "unknown")
+                echo "| $pkg | $os |"
+              fi
+            done
+          } > "$PACKAGES_TABLE"
+          json_file=$(find release_assets -name "caddy_${{ matrix.caddy_version }}*.json" | head -n1)
+          GO_VERSION=$(jq -r '.go_version // empty' "$json_file")
+          XCADDY_VERSION=$(jq -r '.xcaddy_version // empty' "$json_file")
+          ENABLED_PLUGINS=$(jq -r '.enabled_plugins | if type=="array" then join(",") else . end' "$json_file")
+          {
+            echo "| Feature | Configuration |"
+            echo "| ---     | ---           |"
+            echo "| Go Version | $GO_VERSION |"
+            echo "| xcaddy Version | $XCADDY_VERSION |"
+            echo "| Pre-built Modules | $ENABLED_PLUGINS |"
+            echo "| Binary Optimization | UPX compressed, stripped |"
+          } > "$CONFIG_TABLE"
+          echo "packages_table<<EOF" >> $GITHUB_OUTPUT
+          cat "$PACKAGES_TABLE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "config_table<<EOF" >> $GITHUB_OUTPUT
+          cat "$CONFIG_TABLE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          count=$(ls release_assets/caddy_* 2>/dev/null | grep -v "\.json$" | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "skip_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip_release=false" >> $GITHUB_OUTPUT
+          fi
+          echo "Files prepared for release:"
+          ls -la release_assets/
+          rm -rf "$TEMP_DIR"
+      - name: Create Release
+        if: steps.prepare-release-assets.outputs.skip_release == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ matrix.caddy_version }}
+          name: Caddy ${{ matrix.caddy_version }}
+          files: |
+            release_assets/*
+          body: |
+            # Caddy v${{ matrix.caddy_version }}
+
+            Pre-built Caddy packages with additional plugins for various Linux distributions.
+
+            ## 🎯 Features
+
+            - Pre-compiled packages ready to use
+            - Multiple distribution support
+            - Automated builds via GitHub Actions
+            - JSON metadata for automated installations
+            - UPX compressed binaries
+            - Additional plugins included
+
+            ## 📦 Available Packages
+
+            ${{ steps.prepare-release-assets.outputs.packages_table }}
+
+            ## 🔧 Build Configuration
+
+            ${{ steps.prepare-release-assets.outputs.config_table }}
+
+            ## 📋 Installation
+
+            ### Manual Installation
+            1. Download the appropriate .deb package for your distribution
+            2. Install using: `sudo dpkg -i caddy_${{ matrix.caddy_version }}_*.deb`
+            3. Fix any dependencies if needed: `sudo apt-get install -f`
+
+            ## 🔍 Binary Details
+
+            - Each are optimized with:
+              - UPX compression
+              - Stripped symbols
+
+            ## 📄 Metadata
+
+            Each binary is accompanied by its JSON metadata file containing:
+            - Binary information
+            - Checksums
+            - Build configuration
+            - Distribution details
+
+            ## 📝 License
+
+            Caddy is distributed under the [Apache License 2.0](https://github.com/caddyserver/caddy/blob/master/LICENSE).
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
