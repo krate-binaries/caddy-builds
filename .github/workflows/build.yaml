@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ 
-        startsWith(matrix.os, 'debian-') && (matrix.os == 'debian-11' && 'debian:bullseye' || matrix.os == 'debian-12' && 'debian:bookworm' || 'debian:bookworm') ||
+        startsWith(matrix.os, 'debian-') && (matrix.os == 'debian-13' && 'debian:trixie' || matrix.os == 'debian-testing' && 'debian:testing' || 'debian:trixie') ||
         startsWith(matrix.os, 'ubuntu-') && format('{0}:{1}', 'ubuntu', matrix.os == 'ubuntu-latest' && 'latest' || matrix.os == 'ubuntu-18.04' && '18.04' || matrix.os == 'ubuntu-20.04' && '20.04' || matrix.os == 'ubuntu-22.04' && '22.04' || matrix.os == 'ubuntu-24.04' && '24.04' || matrix.os) || '' }}
     env:
       DEBIAN_FRONTEND: noninteractive
@@ -65,20 +65,15 @@ jobs:
         id: bootstrap
         shell: bash
         run: |
-          upx="upx-ucl"
-          if [ "${{ matrix.os }}" = "debian-12" ]; then
-            echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/sources.list
-            upx="upx-ucl/bookworm-backports"
-          fi
           echo 'Acquire::Retries "3";' >> /etc/apt/apt.conf.d/80-retries
           echo 'Acquire::http::Timeout "120";' >> /etc/apt/apt.conf.d/80-timeout
           for i in {1..5}; do
             apt-get update && apt-get install -y --no-install-recommends \
               apt-transport-https lsb-release sudo wget git gzip file util-linux dnsutils \
-              dirmngr software-properties-common psmisc gnupg2 ca-certificates gpg-agent \
+              dirmngr psmisc gnupg2 ca-certificates gpg-agent \
               dos2unix nfs-common jq locales debconf-utils net-tools build-essential \
               zip unzip ssl-cert openssl autoconf-archive debian-keyring debian-archive-keyring \
-              libicu-dev "$upx" \
+              libicu-dev \
             && break
             echo "Retry #$i failed — new attempt in 5s…" >&2
             sleep 5
@@ -86,6 +81,14 @@ jobs:
           if [ $i -eq 5 ]; then
             echo "Error: failed to install packages after 5 attempts" >&2
             exit 1
+          fi
+          # Optional deps vary by distro release.
+          apt-get install -y --no-install-recommends software-properties-common 2>/dev/null || true
+          if ! command -v upx >/dev/null 2>&1; then
+            apt-get install -y --no-install-recommends upx-ucl 2>/dev/null || true
+          fi
+          if ! command -v upx >/dev/null 2>&1; then
+            apt-get install -y --no-install-recommends upx 2>/dev/null || true
           fi
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -262,7 +265,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        caddy_version: ['2.5.2', '2.6.4', '2.7.6', '2.8.4', '2.9.1', '2.10.0']
+        caddy_version: ['2.11.2']
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4

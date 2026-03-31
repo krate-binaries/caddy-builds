@@ -3,6 +3,7 @@ import yaml
 
 matrix = []
 
+
 def add(version, config):
     """Add build combinations to the matrix.
     
@@ -28,9 +29,11 @@ def add(version, config):
                 "mod_fail2ban_version": "0.x.x",
             }
     """
+    caddy_version = config.get("version", version)
+
     for os in config["oses"]:
         matrix.append({
-            "caddy_version": version,
+            "caddy_version": caddy_version,
             "stability": config["stability"],
             "go_version": config["go_version"],
             "os": os,
@@ -50,116 +53,82 @@ def add(version, config):
         })
 
 CADDY_CONFIGS = {
-    "2.5.2": {
-        "stability": "oldstable",
-        "go_version": "1.17.13",
-        "oses": ["debian-11", "ubuntu-22.04"],
-        "xcaddy_version": "0.3.1",
-        "mod_security_version": "v1.1.14",
-        "mod_l4_version": "22431f8ffc5b42b50e2f9efd0847f862b17d4e4c",
-        "mod_crowdsec_bouncer_version": "v0.2.0",
-        "mod_libdns_version": "8b75c024f21e77c1ee32273ad24c579d1379b2b0",
-        "mod_dynamicdns_version": "d7258512dd6cfacaf6187f85522d826f1e149ca0",
-        "mod_cloudflare_version": "ed330a80c094fe73a59b5d8abc2624222550cc7e",
-        "mod_webdav_version": "f61c5c7d19ee16ae98a8bd1801259677d18e5e5d",
-        "mod_defender_version": "v0.3.0",
-        "mod_ratelimit_version": "163fde700dd7cd58966cc654a1e8c6d47678c8fe",
-        "mod_fail2ban_version": "v1.1.0",
-        "mod_cache_handler_version": "v0.2.0",
-        "enabled_modules": ["caddy_exec", "caddy_security", "caddy_l4", "caddy_crowdsec_bouncer", "caddy_webdav", "caddy_ratelimit", "cache_handler"],
-    },
-    "2.6.4": {
-        "stability": "oldstable",
-        "go_version": "1.19.13",
-        "oses": ["debian-11", "ubuntu-22.04"],  
-        "xcaddy_version": "0.3.2",
-        "mod_security_version": "v1.1.18",
-        "mod_l4_version": "22431f8ffc5b42b50e2f9efd0847f862b17d4e4c",
-        "mod_crowdsec_bouncer_version": "v0.2.0",
-        "mod_libdns_version": "8b75c024f21e77c1ee32273ad24c579d1379b2b0",
-        "mod_dynamicdns_version": "f03b230d01e1e46ab8fbb4cbc811d53224dce3f5",
-        "mod_cloudflare_version": "ed330a80c094fe73a59b5d8abc2624222550cc7e",
-        "mod_webdav_version": "5e0e1179b5b2144c16b5cba4ccf7876931f3a22d",
-        "mod_defender_version": "v0.3.0",
-        "mod_ratelimit_version": "2dc0d586f0b87e983757c403bc0929ddeb84a537",
-        "mod_fail2ban_version": "v1.1.0",
-        "mod_cache_handler_version": "v0.4.0",
-        "enabled_modules": ["caddy_exec", "caddy_security", "caddy_l4", "caddy_crowdsec_bouncer", "caddy_webdav", "caddy_ratelimit", "cache_handler"],
-    },
-    "2.7.6": {
-        "stability": "oldstable",
-        "go_version": "1.20.14",
-        "oses": ["debian-11", "debian-12", "ubuntu-22.04", "ubuntu-24.04"],
-        "xcaddy_version": "0.3.5",
-        "mod_security_version": "v1.1.21",
-        "mod_l4_version": "22431f8ffc5b42b50e2f9efd0847f862b17d4e4c",
-        "mod_crowdsec_bouncer_version": "v0.2.0",
-        "mod_libdns_version": "8b75c024f21e77c1ee32273ad24c579d1379b2b0",
-        "mod_dynamicdns_version": "a8b47d7de94337de4ec512aef92953571897be5a",
-        "mod_cloudflare_version": "8789126791ed250b532e1d7d512256737625e6e0",
-        "mod_webdav_version": "5e0e1179b5b2144c16b5cba4ccf7876931f3a22d",
-        "mod_defender_version": "v0.3.0",
-        "mod_ratelimit_version": "8aeaea3aeacb873d2e7435f7cd1676b27a22be68",
-        "mod_fail2ban_version": "c4139952edefb952b7b2e11d921be227ae9da501",
-        "mod_cache_handler_version": "v0.10.0",
-        "enabled_modules": ["caddy_exec", "caddy_security", "caddy_l4", "caddy_crowdsec_bouncer", "caddy_webdav", "caddy_ratelimit", "cache_handler", "caddy_fail2ban", "caddy_cloudflare"],
-    },
-    "2.8.4": {
-        "stability": "stable",
-        "go_version": "1.22.12",
-        "oses": ["debian-11", "debian-12", "ubuntu-22.04", "ubuntu-24.04"],
-        "xcaddy_version": "0.4.2",
-        "mod_security_version": "v1.1.21",
-        "mod_l4_version": "6e8e0581253cebed901773d5e5d54afe9488a0fa",
-        "mod_crowdsec_bouncer_version": "v0.2.0",
-        "mod_libdns_version": "8b75c024f21e77c1ee32273ad24c579d1379b2b0",
-        "mod_dynamicdns_version": "d8dab1bbf3fc592032f71dacc14510475b4e3e9a",
-        "mod_cloudflare_version": "v0.2.1",
-        "mod_webdav_version": "0f2910d52a7ea15517a288a6f3f02a5e010da845",
-        "mod_defender_version": "v0.6.0",
-        "mod_ratelimit_version": "9f619ad46dbd1efd7799bcbfdfbc4a4cfaae948a",
-        "mod_fail2ban_version": "c4139952edefb952b7b2e11d921be227ae9da501",
-        "mod_cache_handler_version": "v0.13.0",
-        "enabled_modules": ["caddy_exec", "caddy_security", "caddy_l4", "caddy_crowdsec_bouncer", "caddy_webdav", "caddy_ratelimit", "cache_handler", "caddy_fail2ban", "caddy_cloudflare"],
-    },
-    "2.9.1": {
+    # Caddy 2.11.2 — cible unique
+    # trixie + noble = stable ; forky = next
+    "2.11.2-stable": {
+        "version": "2.11.2",
         "stability": "stable",
         "go_version": "1.24.3",
-        "oses": ["debian-11", "debian-12", "ubuntu-22.04", "ubuntu-24.04"],
+        # Debian 13 (trixie) + Ubuntu 24.04 (noble)
+        "oses": ["debian-13", "ubuntu-24.04"],
         "xcaddy_version": "0.4.4",
         "mod_security_version": "v1.1.21",
-        "mod_l4_version": "4d3c80e89c5f80438a3e048a410d5543ff5fb9f4",
+        # Keep caddy-l4 aligned with Caddy 2.11.x QUIC API.
+        "mod_l4_version": "master",
         "mod_crowdsec_bouncer_version": "v0.2.0",
-        "mod_libdns_version": "master",
-        "mod_dynamicdns_version": "7c818ab3fc3485a72a346f85c77810725f19f9cf",
-        "mod_certmagic_version": "v0.22.1",
-        "mod_cloudflare_version": "master",
-        "mod_webdav_version": "42168ba04c9dc2cd228ab8c453dbab27654e52e6",
-        "mod_defender_version": "v0.8.5",
-        "mod_ratelimit_version": "a8e9f68d7bedc7ddb0c5bb93d6d32d8cf75fcc9f",
-        "mod_fail2ban_version": "c4139952edefb952b7b2e11d921be227ae9da501",
-        "mod_cache_handler_version": "v0.15.0",
-        "enabled_modules": ["caddy_exec", "caddy_security", "caddy_l4", "caddy_crowdsec_bouncer", "caddy_webdav", "caddy_ratelimit", "cache_handler", "caddy_fail2ban", "caddy_cloudflare", "caddy_defender", "caddy_certmagic"],
-    },
-    "2.10.0": {
-        "stability": "next",
-        "go_version": "1.24.3",
-        "oses": ["debian-12", "ubuntu-24.04"],
-        "xcaddy_version": "0.4.4",
-        "mod_security_version": "v1.1.21",
-        "mod_l4_version": "4d3c80e89c5f80438a3e048a410d5543ff5fb9f4",
-        "mod_crowdsec_bouncer_version": "v0.2.0",
-        "mod_libdns_version": "6be57668e7bf10f6c31ab7ffcd7cc132766c1ee2",
+        # Caddy 2.11.2 requires libdns >= v1.1.1
+        "mod_libdns_version": "v1.1.1",
         "mod_dynamicdns_version": "b846b9e8fb83f52be540fb7876116f944e56d551",
         "mod_certmagic_version": "476582b6ef8827665e10556390a0d766e03955c3",
         "mod_cloudflare_version": "35fb8474f57d7476329f75d63eebafb95a93022f",
-        "mod_webdav_version": "42168ba04c9dc2cd228ab8c453dbab27654e52e6",   
+        "mod_webdav_version": "42168ba04c9dc2cd228ab8c453dbab27654e52e6",
         "mod_defender_version": "85fdeb25b6250e31b8e38669c642ca703b007b7f",
         "mod_ratelimit_version": "a8e9f68d7bedc7ddb0c5bb93d6d32d8cf75fcc9f",
         "mod_fail2ban_version": "c4139952edefb952b7b2e11d921be227ae9da501",
         "mod_cache_handler_version": "v0.15.0",
-        "enabled_modules": ["caddy_exec", "caddy_security", "caddy_l4", "caddy_crowdsec_bouncer", "caddy_webdav", "caddy_ratelimit", "cache_handler", "caddy_fail2ban", "caddy_cloudflare", "caddy_defender", "caddy_certmagic", "caddy_libdns", "caddy_dynamicdns"],
-    }
+        "enabled_modules": [
+            "caddy_exec",
+            "caddy_security",
+            "caddy_l4",
+            "caddy_crowdsec_bouncer",
+            "caddy_webdav",
+            "caddy_ratelimit",
+            "cache_handler",
+            "caddy_fail2ban",
+            "caddy_cloudflare",
+            "caddy_defender",
+            "caddy_certmagic",
+            "caddy_libdns",
+            "caddy_dynamicdns",
+        ],
+    },
+    "2.11.2-next": {
+        "version": "2.11.2",
+        "stability": "next",
+        "go_version": "1.24.3",
+        # Debian testing (forky)
+        "oses": ["debian-testing"],
+        "xcaddy_version": "0.4.4",
+        "mod_security_version": "v1.1.21",
+        # Keep caddy-l4 aligned with Caddy 2.11.x QUIC API.
+        "mod_l4_version": "master",
+        "mod_crowdsec_bouncer_version": "v0.2.0",
+        # Caddy 2.11.2 requires libdns >= v1.1.1
+        "mod_libdns_version": "v1.1.1",
+        "mod_dynamicdns_version": "b846b9e8fb83f52be540fb7876116f944e56d551",
+        "mod_certmagic_version": "476582b6ef8827665e10556390a0d766e03955c3",
+        "mod_cloudflare_version": "35fb8474f57d7476329f75d63eebafb95a93022f",
+        "mod_webdav_version": "42168ba04c9dc2cd228ab8c453dbab27654e52e6",
+        "mod_defender_version": "85fdeb25b6250e31b8e38669c642ca703b007b7f",
+        "mod_ratelimit_version": "a8e9f68d7bedc7ddb0c5bb93d6d32d8cf75fcc9f",
+        "mod_fail2ban_version": "c4139952edefb952b7b2e11d921be227ae9da501",
+        "mod_cache_handler_version": "v0.15.0",
+        "enabled_modules": [
+            "caddy_exec",
+            "caddy_security",
+            "caddy_l4",
+            "caddy_crowdsec_bouncer",
+            "caddy_webdav",
+            "caddy_ratelimit",
+            "cache_handler",
+            "caddy_fail2ban",
+            "caddy_cloudflare",
+            "caddy_defender",
+            "caddy_certmagic",
+            "caddy_libdns",
+            "caddy_dynamicdns",
+        ],
+    },
 }
 
 for version, config in CADDY_CONFIGS.items():
