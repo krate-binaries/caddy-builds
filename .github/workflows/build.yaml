@@ -157,6 +157,7 @@ jobs:
             --with github.com/mholt/caddy-ratelimit@${{ matrix.mod_ratelimit_version }} \
             $FAIL2BAN_FLAG \
             --with github.com/caddyserver/cache-handler@${{ matrix.mod_cache_handler_version }} \
+            --with github.com/caddyserver/replace-response \
             --output caddy_static
           mv caddy_static caddy
           strip --strip-unneeded ./caddy
@@ -265,7 +266,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        caddy_version: ['2.11.2']
+        caddy_version: ['2.11.3']
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
