@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Caddy version to build'
+        description: "Caddy version to build"
         required: false
-        default: 'latest'
+        default: "latest"
         type: string
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: generate
         run: |
           echo "Generating matrix..."
@@ -45,7 +45,7 @@ jobs:
       max-parallel: 10
     runs-on: ubuntu-latest
     container:
-      image: ${{ 
+      image: ${{
         startsWith(matrix.os, 'debian-') && (matrix.os == 'debian-13' && 'debian:trixie' || matrix.os == 'debian-testing' && 'debian:testing' || 'debian:trixie') ||
         startsWith(matrix.os, 'ubuntu-') && format('{0}:{1}', 'ubuntu', matrix.os == 'ubuntu-latest' && 'latest' || matrix.os == 'ubuntu-18.04' && '18.04' || matrix.os == 'ubuntu-20.04' && '20.04' || matrix.os == 'ubuntu-22.04' && '22.04' || matrix.os == 'ubuntu-24.04' && '24.04' || matrix.os) || '' }}
     env:
@@ -91,10 +91,10 @@ jobs:
             apt-get install -y --no-install-recommends upx 2>/dev/null || true
           fi
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout tools repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: MediaEase-binaries/tools
           path: tools
@@ -266,7 +266,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        caddy_version: ['2.11.3']
+        caddy_version: ["2.11.3"]
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -376,4 +376,4 @@ jobs:
 
             Caddy is distributed under the [Apache License 2.0](https://github.com/caddyserver/caddy/blob/master/LICENSE).
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
