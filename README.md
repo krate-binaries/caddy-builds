@@ -46,7 +46,7 @@ These plugins are included in all Caddy versions:
 
 ### Manual Installation
 
-1. Download the appropriate .deb file for your distribution from the [Releases](https://github.com/MediaEase-binaries/caddy-builds/releases) page.
+1. Download the appropriate .deb file for your distribution from the [Releases](https://github.com/krate-apps/caddy-builds/releases) page.
 2. Install the package using:
    ```bash
    sudo dpkg -i caddy_{version}_{distro}_{arch}.deb
